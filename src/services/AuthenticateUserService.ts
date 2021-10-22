@@ -1,4 +1,6 @@
 import axios from "axios"
+import { sign } from "jsonwebtoken"
+import { db } from "../db"
 
 interface IAccessTokenResponse {
     access_token: string
@@ -32,6 +34,40 @@ export class AuthenticateUserService {
             }
         })
 
-        return response.data
+        const {
+            name,
+            login,
+            avatar_url,
+            id: github_id,
+        } = response.data
+
+        let user = await db.user.findFirst({ where: { github_id } })
+
+        if (!user) {
+            user = await db.user.create({
+                data: {
+                    name,
+                    login,
+                    github_id,
+                    avatar_url,
+                }
+            })
+        }
+
+        const token = sign({
+            user: {
+                id: user.id,
+                name: user.name,
+                avatar_url: user.avatar_url,
+            },
+
+        },
+            process.env.JWT_SECRET,
+            {
+                subject: user.id,
+                expiresIn: '1d'
+            })
+
+        return { user, token }
     }
 }
